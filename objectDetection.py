@@ -41,13 +41,15 @@ class ImageDisplay:
     
     def initMask(self):
         gray = cv2.cvtColor(self.image, cv2.COLOR_RGB2GRAY)
-        blur = cv2.GaussianBlur(gray, (5,5), cv2.BORDER_DEFAULT)
-        ret, thresh = cv2.threshold(blur, 150, 255, cv2.THRESH_BINARY)
-        contours, hierarchy = cv2.findContours(thresh, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
-        cv2.drawContours(image=blur, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv2.LINE_AA)
+        blur = cv2.GaussianBlur(gray, (7,7), cv2.BORDER_DEFAULT)
+        CannyAccThresh, matrix = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU);
+        CannyThresh = 0.1 * CannyAccThresh;
+        canny = cv2.Canny(blur,CannyThresh,CannyAccThresh);
+        contours, hier = cv2.findContours(canny, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
         mask = np.zeros(blur.shape, dtype=np.uint8)
         for i in range(len(contours)):
             mask = cv2.fillConvexPoly(mask, contours[i], i)
+        mask.tofile('save.csv', sep=',', format='%s')
         return contours, mask
     
     def update_GUI(self, new_image):
@@ -57,8 +59,15 @@ class ImageDisplay:
         self.window = self.create_window()
 
     def remove(self, e):
-        print(e)
-        altered_image = cv2.fillConvexPoly(self.image, self.contours[self.mask[e.y, e.x]], [0,0,0])
+        """
+        altered_image = np.zeros(self.image.shape)
+        value = self.mask[e.y, e.x]
+        for x in range(len(self.image[1])):
+            for y in range(len(self.image[0])):
+                altered_image[y,x] = [0,0,0] if self.mask[y,x] == value else self.image[y,x]"""
+        tempMask = np.array(cv2.fillConvexPoly(np.zeros(shape=(self.height, self.width)), self.contours[self.mask[e.y, e.x]], 255), dtype=np.uint8)
+        print(tempMask.dtype)
+        altered_image = cv2.inpaint(src=self.image, inpaintMask=tempMask, inpaintRadius=5, flags=cv2.INPAINT_NS)
         self.update_GUI(altered_image)
         
 
