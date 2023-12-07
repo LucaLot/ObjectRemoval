@@ -1,0 +1,43 @@
+How the fuck everything works
+
+Convert RGB to Grayscale
+
+Blur the Grayscale image
+
+Apply Thresholding to the blurred image. Thresholding is used to translate the grayscale image into a blurred 
+image, which this is done by finding a threshold value. While it does return a matrix of thresholded values, 
+we don't really care about that. Instead, the value that matters is the optimal threshold value. To get this, 
+we use the Otsu Threshold. The Otsu method uses a gray scale image to generate a histogram, using it to find 
+a cumaltive distribution. Finally, it uses this to find a mean intensity value. The mean intensity value is 
+used as the threshhold value
+
+As Binary Thresholding is used, the threshold splits the image into two bins, setting one to an intensity 
+value of 0, and the other to 1.
+
+With the value used for binary thresholding, we use that to find a lower value for edge detection. TO get 
+that, the threshold value is multiplied by 0.1.
+
+These two values are put in the Canny edge detection. The Canny algorithm is a multipart algorithm which will 
+remove pixels it deem are not important. This is done through the use of the x and y Sobel filters. This gets 
+the directional derivatives of each pixel, which is also used to find the edge gradient and direction. 
+
+With that information, two forms of suppresion are used. The first is non-maximum suppression, which will 
+check all pixels and the gradient direction they form. If the pixel is the largest in the gradient, it is 
+kept as a local max, as it's suspected it's an edge. If not, the pixel is removed.
+
+This won't remove all edge pixels, so the final step is to remove all pixels outside of the selected range. 
+This is where our threshold values come in. If a pixel is outside the range as determined by the threshhold 
+range, it is removed. Else, it's kept in and used to find the contour. 
+
+Additionally, we use the L2gradient to find the gradient, which finds the second derivative, which is more 
+accurate then the L1 gradient.
+
+The Canny edge detection returns a vector of edges. This is used in cv2.findContours, which will return an array of an array of points.
+
+These points are used in the mask layer. This mask is marked with the value of the contour. So if the contour 
+is the first one, the area filled by that contour is listed as 1.
+
+The benefit of this aproach is it allows clicks to be registered as taking place in parts of the 
+image. THerefore if we select an object that is fully surronded by contours, it will be removed. 
+
+Then inpainting. THe method used is taken from the paper "Navier-Stokes, Fluid Dynamics, and Image and Video Inpainting". The algorithm will draw edges from known to unknown regions based on edges. Then, it colours in the area to reduce variance
