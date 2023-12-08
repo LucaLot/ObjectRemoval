@@ -22,7 +22,7 @@ class ImageDisplay:
         self.layout = self.create_layout()
         self.window = None
         self.edges, self.contours, self.mask = self.initMask()
-   
+    #Creates the image display, and related buttons
     def create_layout(self):
         layout = [[sg.pin(sg.Graph(
             canvas_size=(self.width, self.height),
@@ -44,32 +44,38 @@ class ImageDisplay:
         window = sg.Window('Display Image', self.layout, finalize=True)    
         window['-IMAGE-'].draw_image(data=image_data, location=self.before_loc)
         return window
-    
+    #Basis of the program, attempts to find the edges and create a mask based off of it
     def initMask(self):
+        #Convert to grayscale and blur, to make it easier to detect potential edges
         gray = cv2.cvtColor(self.originalImage, cv2.COLOR_RGB2GRAY)
         blur = cv2.GaussianBlur(gray, (7,7), cv2.BORDER_DEFAULT)
+        #First, find the threshold value used, and a binary matrix representing threshold edges
         CannyAccThresh, edges = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+        #Depending on the method, only use the threshold edges or also use Canny edge detection
         if (not self.only_threshold):
+            #Create the lower bounds, use it to find the edges
             CannyThresh = 0.1 * CannyAccThresh;
             edges = cv2.Canny(blur,CannyThresh,CannyAccThresh, L2gradient=True)
+        #With a list of points representing the edges, use that to find all objects enclosed
         contours, hier = cv2.findContours(edges, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
+        #For whatever value the contour is listed as (1,2,3...), assign the same value to the mask pixel at that location
         mask = np.zeros(blur.shape, dtype=np.uint8)
         for i in range(len(contours)):
             mask = cv2.fillConvexPoly(mask, contours[i], i)
-        mask.tofile('save.csv', sep=',', format='%s')
         return edges, contours, mask
-    
+    #Refreshes page with a new image
     def update_GUI(self, new_image):
         self.image = new_image
         self.layout = self.create_layout()
         self.window.close()
         self.window = self.create_window()
-
+    #Removes an object on the screen, if the click was within a selected area
     def remove(self, e):
         tempMask = np.array(cv2.fillConvexPoly(np.zeros(shape=(self.height, self.width)), self.contours[self.mask[e.y, e.x]], 255), dtype=np.uint8)
+        #Inpaint is used to fill in the removed space
         self.altered_image = cv2.inpaint(src=self.image, inpaintMask=tempMask, inpaintRadius=3, flags=cv2.INPAINT_NS)
         self.update_GUI(self.altered_image)
-    
+    #Helper functions
     def display_image(self):
         self.focus = True
         self.update_GUI(self.altered_image)
@@ -87,9 +93,10 @@ class ImageDisplay:
     def reset(self):
         self.focus = True
         self.update_GUI(self.originalImage)
-
+    #If the method used to find the edges (Threshold or Canny) is changed
     def change_methods(self):
         self.edges, self.contours, self.mask = self.initMask()
+#Helper function, convert an image to be usable by pysimplegui
 def np_im_to_data(im):
     array = np.array(im, dtype=np.uint8)
     im = Image.fromarray(array)
@@ -97,8 +104,7 @@ def np_im_to_data(im):
         im.save(output, format='PNG')
         data = output.getvalue()
     return data
-#Helper function to update the image of the GUI
-
+#Loads image data into the program
 def load_image(image_file):
     print(f'Loading {image_file} ... ', end='')
     image = cv2.imread(image_file)
@@ -124,7 +130,7 @@ def load_blank_image(image):
     im = ImageDisplay(image, width, height, image_file)
     im.window = sg.Window('Display Image', im.layout, finalize=True)    
     return im
-#If an image is provided, or a new one is loaded
+#Main event loop
 def display_image(image):
     # Event loop
     if image is not None:
