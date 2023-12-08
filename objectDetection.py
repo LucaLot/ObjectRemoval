@@ -48,7 +48,7 @@ class ImageDisplay:
     def initMask(self):
         #Convert to grayscale and blur, to make it easier to detect potential edges
         gray = cv2.cvtColor(self.originalImage, cv2.COLOR_RGB2GRAY)
-        blur = cv2.GaussianBlur(gray, (7,7), cv2.BORDER_DEFAULT)
+        blur = cv2.GaussianBlur(gray, (9,9), cv2.BORDER_DEFAULT)
         #First, find the threshold value used, and a binary matrix representing threshold edges
         CannyAccThresh, edges = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
         #Depending on the method, only use the threshold edges or also use Canny edge detection
@@ -111,7 +111,7 @@ def load_image(image_file):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     print(f'{image.shape}')
     
-    ratio = image.shape[1]/640
+    ratio = image.shape[1]/1280
     height = int(image.shape[0]/ratio)
     width = int(image.shape[1]/ratio)
 
@@ -124,8 +124,8 @@ def load_image(image_file):
     return im
 #If no image is provided on load
 def load_blank_image(image):
-    height = 360
-    width = 640
+    height = 720
+    width = 1280
     image_file = 'test.jpg'
     im = ImageDisplay(image, width, height, image_file)
     im.window = sg.Window('Display Image', im.layout, finalize=True)    
