@@ -7,19 +7,21 @@ import cv2
 import matplotlib
 matplotlib.use('TkAgg')
 
-
 class ImageDisplay:
     def __init__(self, image, width, height, filename) -> None:
+        self.originalImage = image
         self.image = image
+        self.altered_image  = image
         self.height = height
         self.width = width
         self.filename = filename
-        self.halfWidth = 0
+        self.focus = True;
+        self.only_threshold = False
         self.before_loc = (0, height)
         self.after_loc = (width,height*2)
         self.layout = self.create_layout()
         self.window = None
-        self.contours, self.mask = self.initMask()
+        self.edges, self.contours, self.mask = self.initMask()
    
     def create_layout(self):
         layout = [[sg.pin(sg.Graph(
@@ -30,7 +32,11 @@ class ImageDisplay:
             background_color='white',
             change_submits=True,
             enable_events=True,
-            drag_submits=True))]]
+            drag_submits=True))],
+            [sg.Button('Show Image', key='-IMG-'), sg.Button('Show Edges Detected', key='-EDGE-'), 
+             sg.Button('Show Edges on Image', key='-CONT-'), sg.Button('Show Mask', key='-MASK-'),
+             sg.Button('Reset', key='-RESET-')],
+             [sg.Button('Only Threshold', key='-THRESH-', disabled=self.only_threshold),sg.Button('Canny Edge Detection', key='-CANNY-', disabled=(not self.only_threshold))]]
         return layout
     
     def create_window(self):
@@ -40,17 +46,18 @@ class ImageDisplay:
         return window
     
     def initMask(self):
-        gray = cv2.cvtColor(self.image, cv2.COLOR_RGB2GRAY)
+        gray = cv2.cvtColor(self.originalImage, cv2.COLOR_RGB2GRAY)
         blur = cv2.GaussianBlur(gray, (7,7), cv2.BORDER_DEFAULT)
-        CannyAccThresh, matrix = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU);
-        CannyThresh = 0.1 * CannyAccThresh;
-        canny = cv2.Canny(blur,CannyThresh,CannyAccThresh);
-        contours, hier = cv2.findContours(canny, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
+        CannyAccThresh, edges = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+        if (not self.only_threshold):
+            CannyThresh = 0.1 * CannyAccThresh;
+            edges = cv2.Canny(blur,CannyThresh,CannyAccThresh, L2gradient=True)
+        contours, hier = cv2.findContours(edges, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
         mask = np.zeros(blur.shape, dtype=np.uint8)
         for i in range(len(contours)):
             mask = cv2.fillConvexPoly(mask, contours[i], i)
         mask.tofile('save.csv', sep=',', format='%s')
-        return contours, mask
+        return edges, contours, mask
     
     def update_GUI(self, new_image):
         self.image = new_image
@@ -59,18 +66,30 @@ class ImageDisplay:
         self.window = self.create_window()
 
     def remove(self, e):
-        """
-        altered_image = np.zeros(self.image.shape)
-        value = self.mask[e.y, e.x]
-        for x in range(len(self.image[1])):
-            for y in range(len(self.image[0])):
-                altered_image[y,x] = [0,0,0] if self.mask[y,x] == value else self.image[y,x]"""
         tempMask = np.array(cv2.fillConvexPoly(np.zeros(shape=(self.height, self.width)), self.contours[self.mask[e.y, e.x]], 255), dtype=np.uint8)
-        print(tempMask.dtype)
-        altered_image = cv2.inpaint(src=self.image, inpaintMask=tempMask, inpaintRadius=5, flags=cv2.INPAINT_NS)
-        self.update_GUI(altered_image)
-        
+        self.altered_image = cv2.inpaint(src=self.image, inpaintMask=tempMask, inpaintRadius=3, flags=cv2.INPAINT_NS)
+        self.update_GUI(self.altered_image)
+    
+    def display_image(self):
+        self.focus = True
+        self.update_GUI(self.altered_image)
+    def display_edges(self):
+        self.focus = False
+        self.update_GUI(self.edges)
+    def display_contours(self):
+        self.focus = False
+        image_copy = self.originalImage.copy()
+        cv2.drawContours(image=image_copy, contours=self.contours, contourIdx=-1, color=(0, 255, 0), thickness=1, lineType=cv2.LINE_AA)
+        self.update_GUI(image_copy)
+    def display_mask(self):
+        self.focus = False
+        self.update_GUI(self.mask)
+    def reset(self):
+        self.focus = True
+        self.update_GUI(self.originalImage)
 
+    def change_methods(self):
+        self.edges, self.contours, self.mask = self.initMask()
 def np_im_to_data(im):
     array = np.array(im, dtype=np.uint8)
     im = Image.fromarray(array)
@@ -117,9 +136,31 @@ def display_image(image):
         im.window.bind("<Motion>", "Motion")
         event, values = im.window.read()
         
-        if event == '-IMAGE-+UP':
+        if event == '-IMAGE-+UP' and im.focus==True:
             e = im.window.user_bind_event
             im.remove(e)
+        if event == '-IMG-':
+            im.display_image()
+        if event == '-EDGE-':
+            im.display_edges()
+        if event == '-CONT-':
+            im.display_contours()
+        if event == '-MASK-':
+            im.display_mask()
+        if event == '-RESET-':
+            im.reset()
+        if event == '-THRESH-':
+            im.only_threshold = True
+            im.change_methods()
+            im.window['-CANNY-'].update(disabled=False)
+            im.window['-THRESH-'].update(disabled=True)
+            im.reset()
+        if event == '-CANNY-':
+            im.only_threshold = False
+            im.change_methods()
+            im.window['-CANNY-'].update(disabled=True)
+            im.window['-THRESH-'].update(disabled=False)
+            im.reset()
         if event == sg.WINDOW_CLOSED or event == 'Quit':
             break
 
